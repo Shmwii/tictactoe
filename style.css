@@ -1,117 +1,234 @@
-body {
-    font-family: 'Arial', sans-serif;
-    text-align: center;
-    background: linear-gradient(to bottom right, #74ebd5, #acb6e5);
-    margin: 0;
-    padding: 0;
-    color: #333;
+const grid = document.getElementById("grid");
+const restartBtn = document.getElementById("restart-btn");
+const currentTurnDisplay = document.getElementById("current-turn");
+const difficultySelect = document.getElementById("difficulty-select");
+
+let board = Array(9).fill(null); // Representing the board as a 1D array
+let currentPlayer = "X";
+let gameActive = true;
+
+// Sound effects
+const moveSound = new Audio("move.mp3");
+const winSound = new Audio("win.mp3");
+
+// Initialize the grid
+function initializeGrid() {
+  grid.innerHTML = ""; // Clear the grid
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement("div");
+    cell.classList.add("cell");
+    cell.dataset.index = i;
+    cell.addEventListener("click", handleCellClick);
+    grid.appendChild(cell);
   }
-  
-  .game-container {
-    margin-top: 50px;
-    padding: 20px;
-    background: #ffffff;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-radius: 10px;
-    display: inline-block;
+}
+
+// Handle cell click event
+function handleCellClick(event) {
+  const cell = event.target;
+  const index = cell.dataset.index;
+
+  if (board[index] || !gameActive) return; // Ignore if cell is already filled or game is over
+
+  board[index] = currentPlayer;
+  cell.textContent = currentPlayer;
+  moveSound.play();
+
+  if (checkWin()) {
+    gameActive = false;
+    highlightWinningCells();
+    winSound.play();
+    setTimeout(() => alert(`${currentPlayer} wins!`), 100);
+    return;
   }
-  
-  h1 {
-    font-size: 2.5em;
-    margin-bottom: 20px;
-    color: #555;
+
+  if (board.every(cell => cell)) {
+    gameActive = false;
+    alert("It's a draw!");
+    return;
   }
-  
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(3, 100px);
-    grid-template-rows: repeat(3, 100px);
-    gap: 10px;
-    justify-content: center;
-    margin: 20px auto;
-    animation: fade-in 0.5s ease-in-out;
+
+  currentPlayer = currentPlayer === "X" ? "O" : "X";
+  currentTurnDisplay.textContent = currentPlayer;
+
+  if (currentPlayer === "O") {
+    setTimeout(() => {
+      if (difficultySelect.value === "hard") {
+        aiMoveHard();
+      } else {
+        aiMoveEasy();
+      }
+    }, 500); // AI makes its move
   }
-  
-  .cell {
-    width: 100px;
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid #333;
-    background-color: #f9f9f9;
-    font-size: 2em;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-radius: 5px;
+}
+
+// AI move (Easy: Random)
+function aiMoveEasy() {
+  if (!gameActive) return;
+
+  const emptyCells = board.map((val, i) => (val === null ? i : null)).filter(val => val !== null);
+  const index = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+
+  board[index] = "O";
+  const cell = document.querySelector(`.cell[data-index='${index}']`);
+  cell.textContent = "O";
+  moveSound.play();
+
+  if (checkWin()) {
+    gameActive = false;
+    highlightWinningCells();
+    winSound.play();
+    setTimeout(() => alert("O wins!"), 100);
+    return;
   }
-  
-  .cell:hover {
-    background-color: #e3f2fd;
-    transform: scale(1.1);
+
+  if (board.every(cell => cell)) {
+    gameActive = false;
+    alert("It's a draw!");
+    return;
   }
-  
-  .cell.winning {
-    background-color: #81c784;
-    color: white;
-    font-weight: bold;
-    animation: highlight 0.5s ease-in-out infinite alternate;
-  }
-  
-  .button {
-    padding: 10px 20px;
-    font-size: 1em;
-    cursor: pointer;
-    background: #29b6f6;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    transition: background 0.3s ease;
-  }
-  
-  .button:hover {
-    background: #0288d1;
-  }
-  
-  .controls {
-    margin-top: 20px;
-  }
-  
-  .select {
-    padding: 5px 10px;
-    font-size: 1em;
-  }
-  
-  #game-status {
-    font-size: 1.2em;
-    margin-bottom: 20px;
-    color: #444;
-  }
-  
-  footer {
-    margin-top: 40px;
-    font-size: 0.9em;
-    color: #666;
-  }
-  
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-      transform: scale(0.9);
+
+  currentPlayer = "X";
+  currentTurnDisplay.textContent = currentPlayer;
+}
+
+// AI move (Hard: Minimax)
+function aiMoveHard() {
+  if (!gameActive) return;
+
+  const bestMove = getBestMove(board, "O");
+  if (bestMove !== null) {
+    board[bestMove] = "O";
+    const cell = document.querySelector(`.cell[data-index='${bestMove}']`);
+    cell.textContent = "O";
+    moveSound.play();
+
+    if (checkWin()) {
+      gameActive = false;
+      highlightWinningCells();
+      winSound.play();
+      setTimeout(() => alert("O wins!"), 100);
+      return;
     }
-    to {
-      opacity: 1;
-      transform: scale(1);
+
+    if (board.every(cell => cell)) {
+      gameActive = false;
+      alert("It's a draw!");
+      return;
+    }
+
+    currentPlayer = "X";
+    currentTurnDisplay.textContent = currentPlayer;
+  }
+}
+
+// Minimax algorithm for best move
+function getBestMove(newBoard, player) {
+  // Possible winning combinations
+  const winningCombinations = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ];
+
+  function checkWinner(board) {
+    for (let combo of winningCombinations) {
+      const [a, b, c] = combo;
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+        return board[a];
+      }
+    }
+    return null;
+  }
+
+  function minimax(board, depth, isMaximizing) {
+    const winner = checkWinner(board);
+    if (winner === "O") return 10 - depth;
+    if (winner === "X") return depth - 10;
+    if (board.every(cell => cell)) return 0; // draw
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!board[i]) {
+          board[i] = "O";
+          let score = minimax(board, depth + 1, false);
+          board[i] = null;
+          if (score > bestScore) bestScore = score;
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!board[i]) {
+          board[i] = "X";
+          let score = minimax(board, depth + 1, true);
+          board[i] = null;
+          if (score < bestScore) bestScore = score;
+        }
+      }
+      return bestScore;
     }
   }
-  
-  @keyframes highlight {
-    from {
-      background-color: #81c784;
-      transform: scale(1);
-    }
-    to {
-      background-color: #66bb6a;
-      transform: scale(1.1);
+
+  let bestScore = -Infinity;
+  let move = null;
+  for (let i = 0; i < 9; i++) {
+    if (!newBoard[i]) {
+      newBoard[i] = "O";
+      let score = minimax(newBoard, 0, false);
+      newBoard[i] = null;
+      if (score > bestScore) {
+        bestScore = score;
+        move = i;
+      }
     }
   }
+  return move;
+}
+
+// Check for win
+function checkWin() {
+  const winningCombinations = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6],
+  ];
+
+  return winningCombinations.some(combination => {
+    const [a, b, c] = combination;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      combination.forEach(index => {
+        document.querySelector(`.cell[data-index='${index}']`).classList.add("winning");
+      });
+      return true;
+    }
+    return false;
+  });
+}
+
+// Highlight winning cells
+function highlightWinningCells() {
+  const cells = document.querySelectorAll(".cell.winning");
+  cells.forEach(cell => {
+    cell.classList.add("highlight");
+  });
+}
+
+// Restart game
+restartBtn.addEventListener("click", () => {
+  board.fill(null);
+  currentPlayer = "X";
+  gameActive = true;
+  currentTurnDisplay.textContent = currentPlayer;
+  initializeGrid();
+});
+
+// Initialize game
+initializeGrid();
